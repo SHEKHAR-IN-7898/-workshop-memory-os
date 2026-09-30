@@ -25,12 +25,24 @@ const zVoidInvoice = z.object({
 });
 
 function send(res: ServerResponse, status: number, body: unknown) {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer",
+    "cache-control": "no-store",
+  });
   res.end(JSON.stringify(body));
 }
 async function body(req: IncomingMessage) {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let size = 0;
+  for await (const chunk of req) {
+    const part = Buffer.from(chunk);
+    size += part.length;
+    if (size > 12 * 1024 * 1024) throw new Error("Request body exceeds 12 MB limit");
+    chunks.push(part);
+  }
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : {};
 }
@@ -252,4 +264,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
+server.requestTimeout = 30_000;
+server.headersTimeout = 10_000;
+server.keepAliveTimeout = 5_000;
+server.maxHeadersCount = 100;
 server.listen(port, () => console.log(`Workshop Memory OS API listening on :${port}`));
