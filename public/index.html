@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Workshop Memory OS</title>
+<style>
+body{font-family:Inter,system-ui,sans-serif;margin:0;background:#0b1020;color:#eef2ff}main{max-width:1100px;margin:auto;padding:32px}header{display:flex;justify-content:space-between;align-items:center;gap:16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin:24px 0}.card{background:#151c31;border:1px solid #27314d;border-radius:16px;padding:20px}.muted{color:#9ca8c7}input,button{padding:12px;border-radius:10px;border:1px solid #35415f;background:#10172a;color:white}button{cursor:pointer}.search{display:flex;gap:8px}.results{white-space:pre-wrap;line-height:1.6}
+</style>
+</head>
+<body><main>
+<header><div><h1>Workshop Memory OS</h1><div class="muted">Business memory for automobile workshops</div></div><button onclick="logout()">Logout</button></header>
+<section class="grid" id="stats"></section>
+<section class="card"><h2>Ask workshop memory</h2><div class="search"><input id="q" placeholder="e.g. What was done on this vehicle?"><button onclick="ask()">Ask</button></div><div id="answer" class="results"></div></section>
+<section class="card"><h2>Search records</h2><div class="search"><input id="s" placeholder="registration, customer, repair..."><button onclick="search()">Search</button></div><div id="results" class="results"></div></section>
+<script>
+const token=localStorage.getItem("wmo_token"); if(!token) location.href="/login";
+async function api(path,opts={}){const r=await fetch(path,{...opts,headers:{"content-type":"application/json",authorization:"Bearer "+token,...(opts.headers||{})}});const d=await r.json();if(!r.ok)throw Error(d.error||"Request failed");return d}
+async function load(){try{const d=await api("/api/v1/analytics/overview");document.getElementById("stats").innerHTML=Object.entries({Customers:d.customers,Vehicles:d.vehicles,Services:d.services,Invoices:d.invoices}).map(([k,v])=>'<div class="card"><div class="muted">'+k+'</div><h2>'+v+'</h2></div>').join("")}catch(e){document.getElementById("stats").innerHTML='<div class="card">'+e.message+"</div>"}}
+async function ask(){const q=document.getElementById("q").value;try{const d=await api("/api/v1/ai/ask",{method:"POST",body:JSON.stringify({question:q})});document.getElementById("answer").textContent=d.answer}catch(e){document.getElementById("answer").textContent=e.message}}
+async function search(){const q=document.getElementById("s").value;try{const d=await api("/api/v1/search?q="+encodeURIComponent(q));document.getElementById("results").textContent=JSON.stringify(d,null,2)}catch(e){document.getElementById("results").textContent=e.message}}
+function logout(){localStorage.removeItem("wmo_token");location.href="/login"} load();
+</script></main></body></html>
