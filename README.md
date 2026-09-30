@@ -93,6 +93,8 @@ Do **not** run the app with the same privileged PostgreSQL account used to run m
 
 Use a migration/provisioning role for DDL and an application role for runtime queries. The runtime role must not be a superuser and must not own the protected tables.
 
+After migrations, grant the runtime role its table/function privileges from `prisma/runtime-grants.sql`. The authentication provisioning functions are SECURITY DEFINER functions with a fixed `search_path`; their EXECUTE privilege is intentionally not granted to PUBLIC.
+
 ## Scale-up components
 
 The functional MVP is in place. The following are deliberately deferred until real workshop usage justifies the operational complexity:
