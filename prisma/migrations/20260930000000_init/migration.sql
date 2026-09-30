@@ -195,6 +195,7 @@ CREATE TABLE "Invoice" (
 );
 CREATE UNIQUE INDEX "Invoice_tenantId_id_key" ON "Invoice"("tenantId","id");
 CREATE UNIQUE INDEX "Invoice_tenantId_invoiceNumber_key" ON "Invoice"("tenantId","invoiceNumber");
+CREATE UNIQUE INDEX "Invoice_tenantId_serviceRecordId_key" ON "Invoice"("tenantId","serviceRecordId");
 CREATE INDEX "Invoice_tenantId_customerId_issueDate_idx" ON "Invoice"("tenantId","customerId","issueDate");
 CREATE INDEX "Invoice_tenantId_vehicleId_issueDate_idx" ON "Invoice"("tenantId","vehicleId","issueDate");
 CREATE INDEX "Invoice_tenantId_status_dueDate_idx" ON "Invoice"("tenantId","status","dueDate");
