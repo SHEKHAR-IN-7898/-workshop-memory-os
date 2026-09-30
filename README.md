@@ -93,19 +93,20 @@ Do **not** run the app with the same privileged PostgreSQL account used to run m
 
 Use a migration/provisioning role for DDL and an application role for runtime queries. The runtime role must not be a superuser and must not own the protected tables.
 
-## What is intentionally not solved yet
+## Scale-up components
 
-- Authentication/JWT and membership provisioning
-- Explicit permission matrix and API middleware
-- Import adapters for specific workshop export formats
-- OCR/document extraction pipeline
-- Search/retrieval and evidence citations
-- pgvector semantic memory
-- Invoice state-transition service and concurrency tests
-- Full RLS integration test suite against PostgreSQL
-- CI with a real PostgreSQL service
+The functional MVP is in place. The following are deliberately deferred until real workshop usage justifies the operational complexity:
 
-These are the next implementation layers. The database foundation is designed so they can be added without weakening tenant isolation.
+- OCR for scanned/image-only PDFs
+- S3-compatible object storage and signed URLs
+- Background job workers and retry queues
+- pgvector semantic retrieval and hybrid search
+- Distributed Redis rate limiting
+- Source-specific import adapters
+- Advanced RBAC administration and customer portal
+- Production observability, backups, and disaster-recovery automation
+
+These are scale-up layers, not missing foundations.
 
 ## Brutal product reality
 
