@@ -141,7 +141,7 @@ model ServiceRecord {
 
   tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   vehicle    Vehicle     @relation(fields: [tenantId, vehicleId], references: [tenantId, id], onDelete: Restrict)
-  technician Technician? @relation(fields: [tenantId, technicianId], references: [tenantId, id], onDelete: SetNull)
+  technician Technician? @relation(fields: [tenantId, technicianId], references: [tenantId, id], onDelete: Restrict)
   invoice    Invoice?
 
   @@unique([tenantId, id])
@@ -180,9 +180,9 @@ model Invoice {
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   customer      Customer       @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Restrict)
   vehicle       Vehicle        @relation(fields: [tenantId, vehicleId], references: [tenantId, id], onDelete: Restrict)
-  serviceRecord ServiceRecord? @relation(fields: [tenantId, serviceRecordId], references: [tenantId, id], onDelete: SetNull)
+  serviceRecord ServiceRecord? @relation(fields: [tenantId, serviceRecordId], references: [tenantId, id], onDelete: Restrict)
   lineItems     InvoiceLineItem[]
-  sourceDocument MemoryDocument? @relation(fields: [tenantId, sourceDocumentId], references: [tenantId, id], onDelete: SetNull)
+  sourceDocument MemoryDocument? @relation(fields: [tenantId, sourceDocumentId], references: [tenantId, id], onDelete: Restrict)
 
   @@unique([tenantId, id])
   @@unique([tenantId, invoiceNumber])
@@ -209,7 +209,7 @@ model InvoiceLineItem {
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   invoice Invoice @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Cascade)
-  part    Part?    @relation(fields: [tenantId, partId], references: [tenantId, id], onDelete: SetNull)
+  part    Part?    @relation(fields: [tenantId, partId], references: [tenantId, id], onDelete: Restrict)
 
   @@unique([tenantId, id])
   @@unique([tenantId, invoiceId, lineNumber])
@@ -358,7 +358,7 @@ model AuditEvent {
   createdAt   DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  actor  User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actor  User?  @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, createdAt])
   @@index([tenantId, entityType, entityId, createdAt])
