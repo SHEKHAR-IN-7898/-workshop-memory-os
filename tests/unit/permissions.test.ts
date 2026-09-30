@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasPermission } from "../../src/security/permissions";
+import { hasPermission } from "../../src/security/permissions.js";
 
 describe("workshop permissions", () => {
   it("does not allow technicians to void invoices", () => {
