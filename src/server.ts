@@ -18,6 +18,18 @@ import { extractPdf } from "./import/pdf";
 
 const port = Number(process.env.PORT ?? 3000);
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
+const authAttempts = new Map<string, { count: number; resetAt: number }>();
+function allowAuth(ip: string): boolean {
+  const now = Date.now();
+  const current = authAttempts.get(ip);
+  if (!current || current.resetAt <= now) {
+    authAttempts.set(ip, { count: 1, resetAt: now + 15 * 60_000 });
+    return true;
+  }
+  if (current.count >= 20) return false;
+  current.count += 1;
+  return true;
+}
 
 const zVoidInvoice = z.object({
   invoiceId: z.string().uuid(),
@@ -89,6 +101,8 @@ const server = createServer(async (req, res) => {
     });
 
     if (method === "POST" && url.pathname === "/api/v1/auth/register") {
+      const ip = req.socket.remoteAddress ?? "unknown";
+      if (!allowAuth(ip)) return send(res, 429, { error: "Too many authentication attempts", requestId });
       const input = registerSchema.parse(await body(req));
       const passwordHash = await hashPassword(input.password);
       const rows = await prisma.$queryRaw<Array<{ user_id: string; tenant_id: string; role: "OWNER" }>>`
@@ -101,6 +115,8 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === "POST" && url.pathname === "/api/v1/auth/login") {
+      const ip = req.socket.remoteAddress ?? "unknown";
+      if (!allowAuth(ip)) return send(res, 429, { error: "Too many authentication attempts", requestId });
       const input = loginSchema.parse(await body(req));
       const user = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
       if (!user || user.status !== "ACTIVE" || !(await verifyPassword(input.password, user.passwordHash))) return send(res, 401, { error: "Invalid credentials" });
@@ -259,7 +275,10 @@ const server = createServer(async (req, res) => {
     return send(res, 404, { error:"Not found", requestId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal error";
-    const status = /Authentication|required|Forbidden|Invalid session|Membership revoked/.test(message) ? 401 : 400;
+    const status = /Authentication|required|Invalid session|Membership revoked/.test(message) ? 401
+      : /Forbidden/.test(message) ? 403
+      : /Too many/.test(message) ? 429
+      : 500;
     return send(res, status, { error: message, requestId });
   }
 });
