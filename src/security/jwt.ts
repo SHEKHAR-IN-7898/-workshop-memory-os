@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { SignJWT, jwtVerify } from "jose";
 
 const secret = process.env.JWT_SECRET;
