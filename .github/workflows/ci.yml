@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: workshop_memory_os
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d workshop_memory_os"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://workshop_app:workshop_app@localhost:5432/workshop_memory_os?schema=public
+      DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/workshop_memory_os?schema=public
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create restricted application role
+        run: |
+          PGPASSWORD=postgres psql "$DIRECT_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'workshop_app') THEN
+              CREATE ROLE workshop_app LOGIN PASSWORD 'workshop_app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+            END IF;
+          END $$;
+          GRANT CONNECT ON DATABASE workshop_memory_os TO workshop_app;
+          GRANT USAGE ON SCHEMA public TO workshop_app;
+          SQL
+
+      - name: Apply migrations
+        run: npm run db:deploy
+
+      - name: Grant runtime table privileges
+        run: |
+          PGPASSWORD=postgres psql "$DIRECT_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO workshop_app;
+          GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO workshop_app;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public
+            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO workshop_app;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public
+            GRANT USAGE, SELECT ON SEQUENCES TO workshop_app;
+          SQL
+
+      - name: Validate schema
+        run: npm run prisma:validate
+
+      - name: Unit tests
+        run: npm test
+
+      - name: RLS integration tests
+        run: npm run test:integration
