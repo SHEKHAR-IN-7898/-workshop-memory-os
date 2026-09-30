@@ -287,3 +287,59 @@ END $$;
 
 -- The application role must not be a superuser and should not own these tables.
 -- Provisioning/migrations must use a separate privileged database role.
+
+
+-- Controlled authentication bootstrap. The runtime role never receives direct
+-- write access to Tenant/Membership for registration; it can only execute this
+-- narrowly-scoped function.
+CREATE OR REPLACE FUNCTION public.provision_owner(
+  p_email TEXT,
+  p_display_name TEXT,
+  p_password_hash TEXT,
+  p_workshop_name TEXT,
+  p_workshop_slug TEXT
+) RETURNS TABLE(user_id UUID, tenant_id UUID, role "MembershipRole")
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_user UUID;
+  v_tenant UUID;
+BEGIN
+  INSERT INTO public."User" ("email","displayName","passwordHash")
+  VALUES (lower(trim(p_email)), NULLIF(trim(p_display_name), ''), p_password_hash)
+  RETURNING "id" INTO v_user;
+
+  INSERT INTO public."Tenant" ("name","slug")
+  VALUES (trim(p_workshop_name), lower(trim(p_workshop_slug)))
+  RETURNING "id" INTO v_tenant;
+
+  INSERT INTO public."Membership" ("tenantId","userId","role")
+  VALUES (v_tenant, v_user, 'OWNER');
+
+  RETURN QUERY SELECT v_user, v_tenant, 'OWNER'::"MembershipRole";
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_user_memberships(p_user_id UUID)
+RETURNS TABLE(tenant_id UUID, tenant_name TEXT, role "MembershipRole")
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = pg_catalog, public
+AS $$
+  SELECT m."tenantId", t."name", m."role"
+  FROM public."Membership" m
+  JOIN public."Tenant" t ON t."id" = m."tenantId"
+  WHERE m."userId" = p_user_id
+    AND m."status" = 'ACTIVE'
+    AND t."status" = 'ACTIVE'
+  ORDER BY m."createdAt" ASC;
+$$;
+
+REVOKE ALL ON FUNCTION public.provision_owner(TEXT,TEXT,TEXT,TEXT,TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_user_memberships(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.provision_owner(TEXT,TEXT,TEXT,TEXT,TEXT) TO workshop_app;
+GRANT EXECUTE ON FUNCTION public.get_user_memberships(UUID) TO workshop_app;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
