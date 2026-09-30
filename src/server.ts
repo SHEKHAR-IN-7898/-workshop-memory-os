@@ -1,5 +1,8 @@
 import "dotenv/config";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "./db/client";
@@ -14,6 +17,7 @@ import { parseCsv, requiredColumns } from "./import/csv";
 import { extractPdf } from "./import/pdf";
 
 const port = Number(process.env.PORT ?? 3000);
+const publicDir = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
 
 const zVoidInvoice = z.object({
   invoiceId: z.string().uuid(),
@@ -49,6 +53,14 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     const method = req.method ?? "GET";
 
+    if (method === "GET" && url.pathname === "/login") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      return res.end(await readFile(join(publicDir, "login.html"), "utf8"));
+    }
+    if (method === "GET" && url.pathname === "/dashboard") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      return res.end(await readFile(join(publicDir, "index.html"), "utf8"));
+    }
     if (method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true, requestId });
     if (method === "GET" && url.pathname === "/") return send(res, 200, {
       name: "Workshop Memory OS", status: "running", api: "v1",
