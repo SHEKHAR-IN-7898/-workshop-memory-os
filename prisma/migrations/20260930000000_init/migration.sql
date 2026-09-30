@@ -260,19 +260,6 @@ CREATE INDEX "AuditEvent_tenantId_createdAt_idx" ON "AuditEvent"("tenantId","cre
 CREATE INDEX "AuditEvent_tenantId_entityType_entityId_createdAt_idx" ON "AuditEvent"("tenantId","entityType","entityId","createdAt");
 CREATE INDEX "AuditEvent_tenantId_actorUserId_createdAt_idx" ON "AuditEvent"("tenantId","actorUserId","createdAt");
 
-ALTER TABLE "Customer" ADD CONSTRAINT "Customer_tenantId_id_fkey" FOREIGN KEY ("tenantId","id") REFERENCES "Tenant"("id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Vehicle" ADD CONSTRAINT "Vehicle_tenantId_id_fkey" FOREIGN KEY ("tenantId","id") REFERENCES "Tenant"("id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Technician" ADD CONSTRAINT "Technician_tenantId_id_fkey" FOREIGN KEY ("tenantId","id") REFERENCES "Tenant"("id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "ServiceRecord" ADD CONSTRAINT "ServiceRecord_tenantId_id_fkey" FOREIGN KEY ("tenantId","id") REFERENCES "Tenant"("id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "MemoryDocument" ADD CONSTRAINT "MemoryDocument_tenantId_id_fkey" FOREIGN KEY ("tenantId","id") REFERENCES "Tenant"("id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_tenantId_id_fkey" FOREIGN KEY ("tenantId","id") REFERENCES "Tenant"("id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Part" ADD CONSTRAINT "Part_tenantId_id_fkey" FOREIGN KEY ("tenantId","id") REFERENCES "Tenant"("id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "InvoiceLineItem" ADD CONSTRAINT "InvoiceLineItem_tenantId_id_fkey" FOREIGN KEY ("tenantId","id") REFERENCES "Tenant"("id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "AuditEvent" ADD CONSTRAINT "AuditEvent_tenantId_id_fkey" FOREIGN KEY ("tenantId","id") REFERENCES "Tenant"("id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- Tenant composite keys are needed by tenant-safe child FKs.
-ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_id_id_key" UNIQUE ("id");
-
 -- Fail-closed tenant isolation. The application must set this transaction-local
 -- value through withTenantTransaction(); an unset value matches no rows.
 DO $$
