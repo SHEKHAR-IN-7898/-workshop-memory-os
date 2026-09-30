@@ -2,9 +2,9 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../../src/generated/prisma/client";
-import { prisma } from "../../src/db/client";
-import { withTenantTransaction } from "../../src/db/tenant";
+import { PrismaClient } from "../../src/generated/prisma/client.js";
+import { prisma } from "../../src/db/client.js";
+import { withTenantTransaction } from "../../src/db/tenant.js";
 
 const directUrl = process.env.DIRECT_DATABASE_URL;
 
