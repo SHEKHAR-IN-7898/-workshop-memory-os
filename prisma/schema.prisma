@@ -23,6 +23,7 @@ model Tenant {
   parts       Part[]
   services    ServiceRecord[]
   invoices    Invoice[]
+  invoiceLineItems InvoiceLineItem[]
   documents   MemoryDocument[]
   auditEvents AuditEvent[]
 
@@ -186,6 +187,7 @@ model Invoice {
 
   @@unique([tenantId, id])
   @@unique([tenantId, invoiceNumber])
+  @@unique([tenantId, serviceRecordId])
   @@index([tenantId, customerId, issueDate])
   @@index([tenantId, vehicleId, issueDate])
   @@index([tenantId, status, dueDate])
