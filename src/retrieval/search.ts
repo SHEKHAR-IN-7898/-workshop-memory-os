@@ -1,5 +1,5 @@
-import type { PrismaClient } from "../generated/prisma/client";
-import { withTenantTransaction } from "../db/tenant";
+import type { PrismaClient } from "../generated/prisma/client.js";
+import { withTenantTransaction } from "../db/tenant.js";
 
 export async function searchWorkshop(
   prisma: PrismaClient,
