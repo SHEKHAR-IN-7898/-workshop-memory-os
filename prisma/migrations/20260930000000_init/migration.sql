@@ -274,10 +274,14 @@ BEGIN
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tbl);
-    EXECUTE format(
-      'CREATE POLICY %I_tenant_isolation ON %I USING ("tenantId" = NULLIF(current_setting(''app.current_tenant_id'', true), '''')::uuid) WITH CHECK ("tenantId" = NULLIF(current_setting(''app.current_tenant_id'', true), '''')::uuid)',
-      lower(tbl), tbl
-    );
+    IF tbl = 'Tenant' THEN
+      EXECUTE 'CREATE POLICY tenant_isolation ON "Tenant" USING ("id" = NULLIF(current_setting(''app.current_tenant_id'', true), '''')::uuid) WITH CHECK ("id" = NULLIF(current_setting(''app.current_tenant_id'', true), '''')::uuid)';
+    ELSE
+      EXECUTE format(
+        'CREATE POLICY %I_tenant_isolation ON %I USING ("tenantId" = NULLIF(current_setting(''app.current_tenant_id'', true), '''')::uuid) WITH CHECK ("tenantId" = NULLIF(current_setting(''app.current_tenant_id'', true), '''')::uuid)',
+        lower(tbl), tbl
+      );
+    END IF;
   END LOOP;
 END $$;
 
