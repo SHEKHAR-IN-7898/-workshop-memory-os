@@ -1,6 +1,6 @@
-import type { PrismaClient } from "../generated/prisma/client";
+import type { Prisma, PrismaClient } from "../generated/prisma/client";
 
-type TransactionClient = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
+type TransactionClient = Prisma.TransactionClient;
 
 const TENANT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
