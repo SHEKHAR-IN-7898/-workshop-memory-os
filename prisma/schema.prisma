@@ -24,6 +24,7 @@ model Tenant {
   services    ServiceRecord[]
   invoices    Invoice[]
   documents   MemoryDocument[]
+  auditEvents AuditEvent[]
 
   @@index([status])
 }
