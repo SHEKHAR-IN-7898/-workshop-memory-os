@@ -7,11 +7,25 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "tsc --noEmit",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
   },
   "devDependencies": {
     "@types/node": "latest",
     "typescript": "latest",
-    "vitest": "latest"
+    "vitest": "latest",
+    "@types/pg": "^8.15.5",
+    "prisma": "^7.10.0",
+    "tsx": "^4.20.5"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "dotenv": "^17.2.2",
+    "pg": "^8.16.3"
   }
 }
