@@ -70,27 +70,28 @@ const server = createServer(async (req, res) => {
     if (method === "POST" && url.pathname === "/api/v1/auth/register") {
       const input = registerSchema.parse(await body(req));
       const passwordHash = await hashPassword(input.password);
-      const result = await prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: { email: input.email.toLowerCase(), displayName: input.displayName, passwordHash },
-        });
-        const tenant = await tx.tenant.create({ data: { name: input.workshopName, slug: input.workshopSlug } });
-        const membership = await tx.membership.create({
-          data: { userId: user.id, tenantId: tenant.id, role: "OWNER" },
-        });
-        return { user, tenant, membership };
-      });
-      const sessionToken = await signSession({ userId: result.user.id, tenantId: result.tenant.id, role: result.membership.role });
-      return send(res, 201, { token: sessionToken, user: { id: result.user.id, email: result.user.email }, tenant: { id: result.tenant.id, name: result.tenant.name, slug: result.tenant.slug } });
+      const rows = await prisma.$queryRaw<Array<{ user_id: string; tenant_id: string; role: "OWNER" }>>`
+        SELECT * FROM public.provision_owner(${input.email.toLowerCase()}, ${input.displayName ?? ""}, ${passwordHash}, ${input.workshopName}, ${input.workshopSlug})
+      `;
+      const result = rows[0];
+      if (!result) throw new Error("Registration failed");
+      const sessionToken = await signSession({ userId: result.user_id, tenantId: result.tenant_id, role: result.role });
+      return send(res, 201, { token: sessionToken, user: { id: result.user_id, email: input.email.toLowerCase() }, tenant: { id: result.tenant_id, name: input.workshopName, slug: input.workshopSlug } });
     }
 
     if (method === "POST" && url.pathname === "/api/v1/auth/login") {
       const input = loginSchema.parse(await body(req));
-      const user = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() }, include: { memberships: { where: { status: "ACTIVE" }, orderBy: { createdAt: "asc" }, take: 1 } } });
-      if (!user || user.status !== "ACTIVE" || !user.memberships[0] || !(await verifyPassword(input.password, user.passwordHash))) return send(res, 401, { error: "Invalid credentials" });
-      const m = user.memberships[0];
-      const sessionToken = await signSession({ userId: user.id, tenantId: m.tenantId, role: m.role });
-      return send(res, 200, { token: sessionToken, user: { id: user.id, email: user.email, displayName: user.displayName }, tenantId: m.tenantId, role: m.role });
+      const user = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
+      if (!user || user.status !== "ACTIVE" || !(await verifyPassword(input.password, user.passwordHash))) return send(res, 401, { error: "Invalid credentials" });
+      const memberships = await prisma.$queryRaw<Array<{ tenant_id: string; tenant_name: string; role: Role }>>`
+        SELECT * FROM public.get_user_memberships(${user.id})
+      `;
+      const m = input.workshopSlug
+        ? memberships.find(x => x.tenant_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") === input.workshopSlug)
+        : memberships[0];
+      if (!m) return send(res, 401, { error: "No active workshop membership" });
+      const sessionToken = await signSession({ userId: user.id, tenantId: m.tenant_id, role: m.role });
+      return send(res, 200, { token: sessionToken, user: { id: user.id, email: user.email, displayName: user.displayName }, tenantId: m.tenant_id, role: m.role });
     }
 
     const s = await session(req);
