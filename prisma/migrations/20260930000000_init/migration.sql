@@ -130,7 +130,7 @@ CREATE TABLE "ServiceRecord" (
   CONSTRAINT "ServiceRecord_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "ServiceRecord_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "ServiceRecord_tenantId_vehicleId_fkey" FOREIGN KEY ("tenantId","vehicleId") REFERENCES "Vehicle"("tenantId","id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT "ServiceRecord_tenantId_technicianId_fkey" FOREIGN KEY ("tenantId","technicianId") REFERENCES "Technician"("tenantId","id") ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT "ServiceRecord_tenantId_technicianId_fkey" FOREIGN KEY ("tenantId","technicianId") REFERENCES "Technician"("tenantId","id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX "ServiceRecord_tenantId_id_key" ON "ServiceRecord"("tenantId","id");
 CREATE INDEX "ServiceRecord_tenantId_vehicleId_serviceDate_idx" ON "ServiceRecord"("tenantId","vehicleId","serviceDate");
@@ -190,8 +190,8 @@ CREATE TABLE "Invoice" (
   CONSTRAINT "Invoice_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "Invoice_tenantId_customerId_fkey" FOREIGN KEY ("tenantId","customerId") REFERENCES "Customer"("tenantId","id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "Invoice_tenantId_vehicleId_fkey" FOREIGN KEY ("tenantId","vehicleId") REFERENCES "Vehicle"("tenantId","id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT "Invoice_tenantId_serviceRecordId_fkey" FOREIGN KEY ("tenantId","serviceRecordId") REFERENCES "ServiceRecord"("tenantId","id") ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT "Invoice_tenantId_sourceDocumentId_fkey" FOREIGN KEY ("tenantId","sourceDocumentId") REFERENCES "MemoryDocument"("tenantId","id") ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT "Invoice_tenantId_serviceRecordId_fkey" FOREIGN KEY ("tenantId","serviceRecordId") REFERENCES "ServiceRecord"("tenantId","id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "Invoice_tenantId_sourceDocumentId_fkey" FOREIGN KEY ("tenantId","sourceDocumentId") REFERENCES "MemoryDocument"("tenantId","id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX "Invoice_tenantId_id_key" ON "Invoice"("tenantId","id");
 CREATE UNIQUE INDEX "Invoice_tenantId_invoiceNumber_key" ON "Invoice"("tenantId","invoiceNumber");
@@ -234,7 +234,7 @@ CREATE TABLE "InvoiceLineItem" (
   CONSTRAINT "InvoiceLineItem_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "InvoiceLineItem_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "InvoiceLineItem_tenantId_invoiceId_fkey" FOREIGN KEY ("tenantId","invoiceId") REFERENCES "Invoice"("tenantId","id") ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT "InvoiceLineItem_tenantId_partId_fkey" FOREIGN KEY ("tenantId","partId") REFERENCES "Part"("tenantId","id") ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT "InvoiceLineItem_tenantId_partId_fkey" FOREIGN KEY ("tenantId","partId") REFERENCES "Part"("tenantId","id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX "InvoiceLineItem_tenantId_id_key" ON "InvoiceLineItem"("tenantId","id");
 CREATE UNIQUE INDEX "InvoiceLineItem_tenantId_invoiceId_lineNumber_key" ON "InvoiceLineItem"("tenantId","invoiceId","lineNumber");
@@ -254,7 +254,7 @@ CREATE TABLE "AuditEvent" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "AuditEvent_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "AuditEvent_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT "AuditEvent_actorUserId_fkey" FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT "AuditEvent_actorUserId_fkey" FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 CREATE INDEX "AuditEvent_tenantId_createdAt_idx" ON "AuditEvent"("tenantId","createdAt");
 CREATE INDEX "AuditEvent_tenantId_entityType_entityId_createdAt_idx" ON "AuditEvent"("tenantId","entityType","entityId","createdAt");
