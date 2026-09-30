@@ -83,11 +83,11 @@ const server = createServer(async (req, res) => {
       const input = loginSchema.parse(await body(req));
       const user = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
       if (!user || user.status !== "ACTIVE" || !(await verifyPassword(input.password, user.passwordHash))) return send(res, 401, { error: "Invalid credentials" });
-      const memberships = await prisma.$queryRaw<Array<{ tenant_id: string; tenant_name: string; role: Role }>>`
+      const memberships = await prisma.$queryRaw<Array<{ tenant_id: string; tenant_name: string; tenant_slug: string; role: Role }>>`
         SELECT * FROM public.get_user_memberships(${user.id})
       `;
       const m = input.workshopSlug
-        ? memberships.find(x => x.tenant_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") === input.workshopSlug)
+        ? memberships.find(x => x.tenant_slug === input.workshopSlug)
         : memberships[0];
       if (!m) return send(res, 401, { error: "No active workshop membership" });
       const sessionToken = await signSession({ userId: user.id, tenantId: m.tenant_id, role: m.role });
