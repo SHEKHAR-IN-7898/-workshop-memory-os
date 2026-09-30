@@ -275,7 +275,7 @@ const server = createServer(async (req, res) => {
     return send(res, 404, { error:"Not found", requestId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal error";
-    const status = /Authentication|required|Invalid session|Membership revoked/.test(message) ? 401
+    const status = error instanceof z.ZodError ? 400 : /Authentication|required|Invalid session|Membership revoked/.test(message) ? 401
       : /Forbidden/.test(message) ? 403
       : /Too many/.test(message) ? 429
       : 500;
