@@ -340,6 +340,4 @@ $$;
 
 REVOKE ALL ON FUNCTION public.provision_owner(TEXT,TEXT,TEXT,TEXT,TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_user_memberships(UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.provision_owner(TEXT,TEXT,TEXT,TEXT,TEXT) TO workshop_app;
-GRANT EXECUTE ON FUNCTION public.get_user_memberships(UUID) TO workshop_app;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
