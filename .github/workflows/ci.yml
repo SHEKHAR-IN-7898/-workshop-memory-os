@@ -62,6 +62,7 @@ jobs:
             GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO workshop_app;
           ALTER DEFAULT PRIVILEGES IN SCHEMA public
             GRANT USAGE, SELECT ON SEQUENCES TO workshop_app;
+          \i prisma/runtime-grants.sql
           SQL
 
       - name: Validate schema
