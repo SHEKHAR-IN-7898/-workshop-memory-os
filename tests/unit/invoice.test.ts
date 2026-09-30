@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canTransitionInvoice } from "../../src/domain/invoice";
+import { canTransitionInvoice } from "../../src/domain/invoice.js";
 
 describe("invoice lifecycle", () => {
   it("allows draft to be issued", () => {
