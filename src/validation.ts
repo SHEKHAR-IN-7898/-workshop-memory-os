@@ -11,6 +11,7 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().email().max(320),
   password: z.string().max(200),
+  workshopSlug: z.string().trim().regex(/^[a-z0-9-]{3,60}$/).optional(),
 });
 
 export const customerSchema = z.object({
