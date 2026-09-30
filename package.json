@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run tests/unit/**/*.test.ts",
+    "test": "vitest run tests/unit",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "tsc --noEmit",
     "build": "tsc --noEmit",
