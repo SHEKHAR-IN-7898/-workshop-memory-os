@@ -2,6 +2,21 @@
 
 AI-powered business memory for automobile workshops.
 
+## Implemented product phases
+
+1. **Auth + workshop onboarding** — registration, login, signed sessions, membership revalidation.
+2. **Customer / vehicle / service APIs** — tenant-safe CRUD foundation and validation.
+3. **Invoice security** — explicit permissions, version field, void workflow, audit events.
+4. **CSV/Excel-style imports** — CSV ingestion with per-row error reporting and audit logging.
+5. **PDF extraction** — bounded PDF text extraction into tenant-scoped memory documents.
+6. **Workshop memory retrieval** — tenant-safe lexical search across customer, vehicle, service, and invoice evidence.
+7. **Business analytics** — overview metrics for customers, vehicles, services, invoices, and revenue.
+8. **Evidence-grounded AI** — OpenAI Responses API provider with a deterministic local fallback when no API key is configured.
+9. **Dashboard** — browser dashboard for analytics, search, and AI questions.
+10. **Production hardening** — PostgreSQL RLS, restricted runtime role, transaction-local tenant context, stale-membership checks, request limits, security headers, concurrency-safe invoice voiding, and CI security tests.
+
+This is a complete functional MVP foundation. OCR for scanned/image-only PDFs, object storage, background job workers, vector search, distributed rate limiting, and advanced import adapters are deliberately separate scale-up components.
+
 ## What this system is
 
 Workshop Memory OS turns workshop exports, invoices, service records, and other business documents into structured, tenant-isolated operational memory.
