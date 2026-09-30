@@ -5,8 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+  }
 
 // Tenant is the security boundary. All business-owned records carry tenantId.
 model Tenant {
