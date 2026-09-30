@@ -95,6 +95,10 @@ const server = createServer(async (req, res) => {
       return res.end(await readFile(join(publicDir, "index.html"), "utf8"));
     }
     if (method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true, requestId });
+    if (method === "GET" && url.pathname === "/ready") {
+      await prisma.$queryRaw`SELECT 1`;
+      return send(res, 200, { ok: true, database: true, requestId });
+    }
     if (method === "GET" && url.pathname === "/") return send(res, 200, {
       name: "Workshop Memory OS", status: "running", api: "v1",
       phases: ["auth","workshop","records","imports","retrieval","ai","analytics","security"],
