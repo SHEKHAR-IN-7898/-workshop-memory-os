@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { prisma } from "./db/client";
 import { withTenantTransaction } from "./db/tenant";
 import { registerSchema, loginSchema, customerSchema, vehicleSchema, questionSchema, importSchema } from "./validation";
@@ -10,8 +11,14 @@ import { assertPermission, type Role } from "./security/permissions";
 import { searchWorkshop } from "./retrieval/search";
 import { answerWithEvidence } from "./ai/provider";
 import { parseCsv, requiredColumns } from "./import/csv";
+import { extractPdf } from "./import/pdf";
 
 const port = Number(process.env.PORT ?? 3000);
+
+const zVoidInvoice = z.object({
+  invoiceId: z.string().uuid(),
+  reason: z.string().trim().min(3).max(1000),
+});
 
 function send(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
@@ -155,6 +162,64 @@ const server = createServer(async (req, res) => {
         await tx.auditEvent.create({ data:{ tenantId:s.tenantId, actorUserId:s.userId, action:"CSV_IMPORT", entityType:input.type, metadata:{ rows:rows.length, counts }, requestId } });
       });
       return send(res, 200, counts);
+    }
+
+        if (method === "GET" && url.pathname === "/api/v1/analytics/overview") {
+      assertPermission(r, "customer:read");
+      const overview = await withTenantTransaction(prisma, s.tenantId, async tx => {
+        const [customers, vehicles, services, invoices, revenue] = await Promise.all([
+          tx.customer.count(), tx.vehicle.count(), tx.serviceRecord.count(), tx.invoice.count(),
+          tx.invoice.aggregate({ _sum: { total: true, amountPaid: true, balanceDue: true } }),
+        ]);
+        return { customers, vehicles, services, invoices, revenue };
+      });
+      return send(res, 200, overview);
+    }
+
+    if (method === "POST" && url.pathname === "/api/v1/documents/pdf") {
+      assertPermission(r, "documents:write");
+      const input = await body(req);
+      if (typeof input.base64 !== "string" || input.base64.length < 20) return send(res, 400, { error: "base64 PDF is required" });
+      const buffer = Buffer.from(input.base64, "base64");
+      const extracted = await extractPdf(buffer);
+      const document = await withTenantTransaction(prisma, s.tenantId, tx =>
+        tx.memoryDocument.create({
+          data: {
+            tenantId: s.tenantId,
+            documentType: input.documentType === "SERVICE_REPORT" ? "SERVICE_REPORT" : "INVOICE",
+            storageKey: input.storageKey ?? `inline/${extracted.sha256}.pdf`,
+            originalName: input.originalName ?? `${extracted.sha256}.pdf`,
+            mimeType: "application/pdf",
+            sha256: extracted.sha256,
+            sizeBytes: BigInt(buffer.length),
+            extractionStatus: "COMPLETED",
+            extractedText: extracted.text,
+            extractedData: { pages: extracted.pages },
+          },
+        }),
+      );
+      return send(res, 201, { id: document.id, sha256: extracted.sha256, pages: extracted.pages, characters: extracted.text.length });
+    }
+
+    if (method === "POST" && url.pathname === "/api/v1/invoices/void") {
+      assertPermission(r, "invoice:void");
+      const input = zVoidInvoice.parse(await body(req));
+      const result = await withTenantTransaction(prisma, s.tenantId, async tx => {
+        const invoice = await tx.invoice.findUnique({ where: { id: input.invoiceId } });
+        if (!invoice) throw new Error("Invoice not found");
+        if (invoice.status === "VOID") throw new Error("Invoice already void");
+        const updated = await tx.invoice.updateMany({
+          where: { id: invoice.id, tenantId: s.tenantId, version: invoice.version, status: invoice.status },
+          data: { status: "VOID", version: { increment: 1 }, voidedAt: new Date(), voidReason: input.reason },
+        });
+        if (updated.count !== 1) throw new Error("Concurrent invoice update detected; retry");
+        await tx.auditEvent.create({ data: {
+          tenantId: s.tenantId, actorUserId: s.userId, action: "INVOICE_VOID",
+          entityType: "Invoice", entityId: invoice.id, requestId, metadata: { reason: input.reason, previousStatus: invoice.status, previousVersion: invoice.version },
+        }});
+        return { ok: true, invoiceId: invoice.id };
+      });
+      return send(res, 200, result);
     }
 
     return send(res, 404, { error:"Not found", requestId });
