@@ -1,0 +1,168 @@
+import "dotenv/config";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
+import { prisma } from "./db/client";
+import { withTenantTransaction } from "./db/tenant";
+import { registerSchema, loginSchema, customerSchema, vehicleSchema, questionSchema, importSchema } from "./validation";
+import { hashPassword, verifyPassword } from "./security/password";
+import { signSession, verifySession } from "./security/jwt";
+import { assertPermission, type Role } from "./security/permissions";
+import { searchWorkshop } from "./retrieval/search";
+import { answerWithEvidence } from "./ai/provider";
+import { parseCsv, requiredColumns } from "./import/csv";
+
+const port = Number(process.env.PORT ?? 3000);
+
+function send(res: ServerResponse, status: number, body: unknown) {
+  res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(body));
+}
+async function body(req: IncomingMessage) {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  const raw = Buffer.concat(chunks).toString("utf8");
+  return raw ? JSON.parse(raw) : {};
+}
+function token(req: IncomingMessage) {
+  const h = req.headers.authorization;
+  if (!h?.startsWith("Bearer ")) throw new Error("Authentication required");
+  return h.slice(7);
+}
+async function session(req: IncomingMessage) {
+  return verifySession(token(req));
+}
+function role(s: Awaited<ReturnType<typeof session>>): Role {
+  if (!["OWNER","ADMIN","MANAGER","TECHNICIAN","STAFF","VIEWER"].includes(s.role)) throw new Error("Invalid role");
+  return s.role as Role;
+}
+
+const server = createServer(async (req, res) => {
+  const requestId = randomUUID();
+  try {
+    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+    const method = req.method ?? "GET";
+
+    if (method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true, requestId });
+    if (method === "GET" && url.pathname === "/") return send(res, 200, {
+      name: "Workshop Memory OS", status: "running", api: "v1",
+      phases: ["auth","workshop","records","imports","retrieval","ai","analytics","security"],
+    });
+
+    if (method === "POST" && url.pathname === "/api/v1/auth/register") {
+      const input = registerSchema.parse(await body(req));
+      const passwordHash = await hashPassword(input.password);
+      const result = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: { email: input.email.toLowerCase(), displayName: input.displayName, passwordHash },
+        });
+        const tenant = await tx.tenant.create({ data: { name: input.workshopName, slug: input.workshopSlug } });
+        const membership = await tx.membership.create({
+          data: { userId: user.id, tenantId: tenant.id, role: "OWNER" },
+        });
+        return { user, tenant, membership };
+      });
+      const sessionToken = await signSession({ userId: result.user.id, tenantId: result.tenant.id, role: result.membership.role });
+      return send(res, 201, { token: sessionToken, user: { id: result.user.id, email: result.user.email }, tenant: { id: result.tenant.id, name: result.tenant.name, slug: result.tenant.slug } });
+    }
+
+    if (method === "POST" && url.pathname === "/api/v1/auth/login") {
+      const input = loginSchema.parse(await body(req));
+      const user = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() }, include: { memberships: { where: { status: "ACTIVE" }, orderBy: { createdAt: "asc" }, take: 1 } } });
+      if (!user || user.status !== "ACTIVE" || !user.memberships[0] || !(await verifyPassword(input.password, user.passwordHash))) return send(res, 401, { error: "Invalid credentials" });
+      const m = user.memberships[0];
+      const sessionToken = await signSession({ userId: user.id, tenantId: m.tenantId, role: m.role });
+      return send(res, 200, { token: sessionToken, user: { id: user.id, email: user.email, displayName: user.displayName }, tenantId: m.tenantId, role: m.role });
+    }
+
+    const s = await session(req);
+    const r = role(s);
+
+    if (method === "GET" && url.pathname === "/api/v1/me") {
+      const me = await withTenantTransaction(prisma, s.tenantId, async (tx) => {
+        const m = await tx.membership.findUnique({ where: { tenantId_userId: { tenantId: s.tenantId, userId: s.userId } }, include: { tenant: true, user: true } });
+        if (!m || m.status !== "ACTIVE") throw new Error("Membership revoked");
+        return { user: { id:m.user.id,email:m.user.email,displayName:m.user.displayName }, tenant:{id:m.tenant.id,name:m.tenant.name,slug:m.tenant.slug}, role:m.role };
+      });
+      return send(res, 200, me);
+    }
+
+    if (method === "POST" && url.pathname === "/api/v1/customers") {
+      assertPermission(r, "customer:write");
+      const input = customerSchema.parse(await body(req));
+      const customer = await withTenantTransaction(prisma, s.tenantId, tx => tx.customer.create({ data: { tenantId:s.tenantId, ...input } }));
+      return send(res, 201, customer);
+    }
+
+    if (method === "POST" && url.pathname === "/api/v1/vehicles") {
+      assertPermission(r, "vehicle:write");
+      const input = vehicleSchema.parse(await body(req));
+      const vehicle = await withTenantTransaction(prisma, s.tenantId, tx => tx.vehicle.create({ data: { tenantId:s.tenantId, ...input } }));
+      return send(res, 201, vehicle);
+    }
+
+    if (method === "GET" && url.pathname === "/api/v1/search") {
+      assertPermission(r, "customer:read");
+      const q = url.searchParams.get("q") ?? "";
+      if (q.length < 2) return send(res, 400, { error: "q must contain at least 2 characters" });
+      const result = await searchWorkshop(prisma, s.tenantId, q, url.searchParams.get("vehicleId") ?? undefined, url.searchParams.get("customerId") ?? undefined);
+      return send(res, 200, result);
+    }
+
+    if (method === "POST" && url.pathname === "/api/v1/ai/ask") {
+      assertPermission(r, "customer:read");
+      const input = questionSchema.parse(await body(req));
+      const result = await searchWorkshop(prisma, s.tenantId, input.question, input.vehicleId, input.customerId);
+      const evidence = [
+        ...result.customers.map(x => ({ type:"customer", id:x.id, text:`Customer ${x.name}; phone ${x.phone ?? "unknown"}` })),
+        ...result.vehicles.map(x => ({ type:"vehicle", id:x.id, text:`Vehicle ${x.registration}; ${[x.make,x.model,x.variant].filter(Boolean).join(" ")}` })),
+        ...result.services.map(x => ({ type:"service", id:x.id, text:`Service ${x.serviceDate.toISOString().slice(0,10)}; complaint: ${x.complaint ?? "none"}; diagnosis: ${x.diagnosis ?? "none"}; work: ${x.workPerformed ?? "none"}` })),
+        ...result.invoices.map(x => ({ type:"invoice", id:x.id, text:`Invoice ${x.invoiceNumber}; date ${x.issueDate.toISOString().slice(0,10)}; total ${x.total}; status ${x.status}` })),
+      ];
+      return send(res, 200, await answerWithEvidence(input.question, evidence));
+    }
+
+    if (method === "POST" && url.pathname === "/api/v1/import/csv") {
+      assertPermission(r, "documents:write");
+      const input = importSchema.parse(await body(req));
+      const rows = parseCsv(input.csv);
+      const counts = { created:0, skipped:0, errors:[] as string[] };
+      await withTenantTransaction(prisma, s.tenantId, async tx => {
+        if (input.type === "customers") {
+          requiredColumns(rows, ["name"]);
+          for (const row of rows) {
+            try { await tx.customer.create({ data:{ tenantId:s.tenantId, name:row.name!, phone:row.phone || undefined, email:row.email || undefined, address:row.address || undefined }}); counts.created++; }
+            catch (e) { counts.skipped++; counts.errors.push(String(e)); }
+          }
+        } else if (input.type === "vehicles") {
+          requiredColumns(rows, ["customerId","registration"]);
+          for (const row of rows) {
+            try { await tx.vehicle.create({ data:{ tenantId:s.tenantId, customerId:row.customerId!, registration:row.registration!, vin:row.vin || undefined, make:row.make || undefined, model:row.model || undefined }}); counts.created++; }
+            catch (e) { counts.skipped++; counts.errors.push(String(e)); }
+          }
+        } else if (input.type === "services") {
+          requiredColumns(rows, ["vehicleId","serviceDate"]);
+          for (const row of rows) {
+            try { await tx.serviceRecord.create({ data:{ tenantId:s.tenantId, vehicleId:row.vehicleId!, serviceDate:new Date(row.serviceDate!), complaint:row.complaint || undefined, diagnosis:row.diagnosis || undefined, workPerformed:row.workPerformed || undefined }}); counts.created++; }
+            catch (e) { counts.skipped++; counts.errors.push(String(e)); }
+          }
+        } else {
+          requiredColumns(rows, ["invoiceNumber","customerId","vehicleId","issueDate","subtotal","total"]);
+          for (const row of rows) {
+            try { await tx.invoice.create({ data:{ tenantId:s.tenantId, invoiceNumber:row.invoiceNumber!, customerId:row.customerId!, vehicleId:row.vehicleId!, issueDate:new Date(row.issueDate!), subtotal:row.subtotal!, total:row.total!, balanceDue:row.balanceDue || row.total! }}); counts.created++; }
+            catch (e) { counts.skipped++; counts.errors.push(String(e)); }
+          }
+        }
+        await tx.auditEvent.create({ data:{ tenantId:s.tenantId, actorUserId:s.userId, action:"CSV_IMPORT", entityType:input.type, metadata:{ rows:rows.length, counts }, requestId } });
+      });
+      return send(res, 200, counts);
+    }
+
+    return send(res, 404, { error:"Not found", requestId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Internal error";
+    const status = /Authentication|required|Forbidden|Invalid session|Membership revoked/.test(message) ? 401 : 400;
+    return send(res, status, { error: message, requestId });
+  }
+});
+
+server.listen(port, () => console.log(`Workshop Memory OS API listening on :${port}`));
