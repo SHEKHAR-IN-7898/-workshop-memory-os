@@ -40,7 +40,16 @@ function token(req: IncomingMessage) {
   return h.slice(7);
 }
 async function session(req: IncomingMessage) {
-  return verifySession(token(req));
+  const claims = await verifySession(token(req));
+  const membership = await withTenantTransaction(prisma, claims.tenantId, async tx => {
+    const m = await tx.membership.findUnique({
+      where: { tenantId_userId: { tenantId: claims.tenantId, userId: claims.userId } },
+      select: { role: true, status: true, user: { select: { status: true } } },
+    });
+    if (!m || m.status !== "ACTIVE" || m.user.status !== "ACTIVE") throw new Error("Membership revoked");
+    return m;
+  });
+  return { ...claims, role: membership.role };
 }
 function role(s: Awaited<ReturnType<typeof session>>): Role {
   if (!["OWNER","ADMIN","MANAGER","TECHNICIAN","STAFF","VIEWER"].includes(s.role)) throw new Error("Invalid role");
